@@ -52,6 +52,7 @@ class WebSocketProtocol(websockets.WebSocketServerProtocol):
         self.connect_sent = False
         self.accepted_subprotocol = None
         self.transfer_data_task = None
+        self.extra_header_overrides = []
 
         self.ws_server = Server()
 
@@ -80,6 +81,17 @@ class WebSocketProtocol(websockets.WebSocketServerProtocol):
 
     def on_task_complete(self, task):
         self.tasks.discard(task)
+
+    def write_http_response(self, status, headers, body=None):
+        """
+        This hook is called to inject extra headers that the websocket
+        should include in its HTTP handshake response.
+        """
+        if status == http.HTTPStatus.SWITCHING_PROTOCOLS:
+            for key, value in self.extra_header_overrides:
+                headers[key] = value
+            self.extra_header_overrides = []
+        super().write_http_response(status, headers, body)
 
     async def process_request(self, path, headers):
         """
@@ -193,6 +205,7 @@ class WebSocketProtocol(websockets.WebSocketServerProtocol):
                     self.scope["root_path"] + self.scope["path"],
                 )
                 self.initial_response = None
+                self.extra_header_overrides = message.get("headers", [])
                 self.accepted_subprotocol = message.get("subprotocol")
                 self.handshake_started_event.set()
 

@@ -149,6 +149,23 @@ async def test_headers(protocol_cls):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("protocol_cls", WS_PROTOCOLS)
+async def test_asgi_headers(protocol_cls):
+    class App(WebSocketResponse):
+        async def websocket_connect(self, message):
+            await self.send({"type": "websocket.accept", "headers": [("key", "value")]})
+
+    async def get_headers(url):
+        async with websockets.connect(url) as websocket:
+            return websocket.response_headers
+
+    config = Config(app=App, ws=protocol_cls, lifespan="off")
+    async with run_server(config):
+        headers = await get_headers("ws://127.0.0.1:8000")
+        assert "key" in headers and "value" == headers["key"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("protocol_cls", WS_PROTOCOLS)
 async def test_path_and_raw_path(protocol_cls):
     class App(WebSocketResponse):
         async def websocket_connect(self, message):
